@@ -2,6 +2,13 @@
 name = "layer-4-proxy"
 version = "0.1.0"
 edition = "2021"
+description = "A simple layer 4 proxy"
+license = "MIT"
+authors = ["AHdark <ahdark@outlook.com>"]
+
+[[bin]]
+name = "layer-4-proxy"
+path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-std", "io-util", "tracing"] }
