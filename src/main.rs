@@ -1,25 +1,32 @@
 mod config;
+mod splice;
 
+use std::os::fd::AsRawFd;
+use std::ptr;
 use std::sync::Arc;
-use tokio::io::copy;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::task;
 
-async fn handle_client(mut incoming: TcpStream, target_addr: &str) -> std::io::Result<()> {
-    let mut outgoing = TcpStream::connect(target_addr).await?;
-    let (mut ri, mut wi) = incoming.split();
-    let (mut ro, mut wo) = outgoing.split();
+use crate::splice::{splice, SPLICE_F_MOVE};
 
-    let client_to_server = copy(&mut ri, &mut wo);
-    let server_to_client = copy(&mut ro, &mut wi);
+async fn handle_client(incoming: TcpStream, target_addr: &str) -> std::io::Result<()> {
+    let outgoing = TcpStream::connect(target_addr).await?;
+    let fd_in = incoming.as_raw_fd();
+    let fd_out = outgoing.as_raw_fd();
 
-    tokio::select!(
-        Err(err) = client_to_server => {
-            Err(err)
+    task::spawn_blocking(move || {
+        loop {
+            let result = unsafe {
+                splice(fd_in, ptr::null_mut(), fd_out, ptr::null_mut(), 65536, SPLICE_F_MOVE)
+            };
+
+            if result <= 0 {
+                break;
+            }
         }
-        Err(err) = server_to_client => {
-            Err(err)
-        }
-    )
+    }).await?;
+
+    Ok(())
 }
 
 #[tokio::main]
